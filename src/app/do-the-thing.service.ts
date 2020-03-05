@@ -9,7 +9,9 @@ export class DoTheThingService {
 
   public doTheThing(componentName: string, injectArrayString: string, bindingsObj: string, controllerFn: string) {
     let injectArray: string[] = eval(injectArrayString);
-    let ctorList = injectArray.map(s => `private ${s}: ${this.mapProviders(s)},${injectArray.length > 3 ? '\n' : ''}\t\t`).join('').trim();
+    let ctorList = injectArray
+      .filter(s => s !== 'moment')
+      .map(s => `private ${s}: ${this.mapProviders(s)},${injectArray.length > 3 ? '\n' : ''}\t\t`).join('').trim();
 
     if (injectArray.length > 3)
       ctorList = '\n\t\t' + ctorList + '\n\t';
@@ -34,12 +36,14 @@ export class DoTheThingService {
       .replace(new RegExp(this.escapeRegExp(thisContext), 'g'), 'this');
 
     injectArray.forEach(s => {
-      convertedCtrl = convertedCtrl.replace(new RegExp(this.escapeRegExp(' ' + s), 'g'), ' this.' + s)
+      if (s !== 'moment')
+        convertedCtrl = convertedCtrl.replace(new RegExp(this.escapeRegExp(' ' + s), 'g'), ' this.' + s)
     });
 
     let output = `
   import { Component, Input, Output } from 'angular-ts-decorators';
   import * as angular from 'angular';
+  ${(injectArray.indexOf('moment') > -1 ? 'import * as moment from \'moment\';' : ``)}
   // tslint:disable
 
 
@@ -49,7 +53,7 @@ export class DoTheThingService {
   })
   export class ${this.pascalCase(componentName)}Component {
       [x: string]: any;
-      public static $inject = [${injectArray.map(s => `'${s}'`).join(', ')}];
+      public static $inject = [${injectArray.filter(s => s !== 'moment').map(s => `'${s}'`).join(', ')}];
 
   ${bindings}
       constructor(${ctorList.substring(0, ctorList.lastIndexOf(','))}) {}
@@ -72,12 +76,15 @@ export class DoTheThingService {
         $state: 'StateService',
         $rootScope: 'ng.IRootScopeService',
         $scope: 'ng.IScope',
+        $uibModal: 'IModalService',
         $element: 'ng.IRootElementService',
+        $window: 'ng.IWindowService',
         reportService: 'ReportService',
         courseSearchFilterService: 'CourseSearchFilterService',
         hideGrades: 'boolean',
         cwEnums: 'EnumsClass',
-        isMessagingDisabled: 'boolean'
+        isMessagingDisabled: 'boolean',
+        $stateParams: 'StateParams'
       }
 
       const ret = map[providerName];
@@ -102,7 +109,7 @@ export class DoTheThingService {
 
     const typeLookup = {
       '<' : ': any;',
-      '&' : ': (obj?: any) => void;',
+      '&' : ': (obj?: {$event: any}) => void;',
       '@' : ': string;'
     }
     for (const iterator in bindings) {
